@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>ARIA — AI Chat</title>
+
+  <!-- PWA META TAGS -->
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#0c0c0f"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="ARIA"/>
+  <link rel="apple-touch-icon" href="icon-192.svg"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0c0c0f;
+      --surface: #141418;
+      --surface2: #1c1c22;
+      --border: rgba(255,255,255,0.07);
+      --text: #e8e8f0;
+      --muted: #6b6b80;
+      --accent: #7c6af7;
+      --accent2: #a78bfa;
+      --user-bg: #1e1b4b;
+      --green: #34d399;
+      --font-sans: 'Geist', sans-serif;
+      --font-mono: 'Geist Mono', monospace;
+      --font-serif: 'Instrument Serif', serif;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-top: env(safe-area-inset-top, 0px);
+    }
+
+    html, body {
+      height: 100%;
+      height: -webkit-fill-available;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    body {
+      color: var(--text);
+      font-family: var(--font-sans);
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      position: fixed;
+      width: 100%;
+      top: 0; left: 0;
+    }
+
+    /* INSTALL BANNER */
+    .install-banner {
+      display: none;
+      background: linear-gradient(90deg, #1e1b4b, #2d1f6e);
+      border-bottom: 1px solid rgba(124,106,247,0.3);
+      padding: 10px 16px;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .install-banner.show { display: flex; }
+    .install-banner p { flex: 1; font-size: 0.78rem; color: #c4b5fd; line-height: 1.4; }
+    .install-banner strong { display: block; font-size: 0.82rem; color: white; margin-bottom: 2px; }
+    .install-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 0.78rem;
+      font-family: var(--font-sans);
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .install-close {
+      background: none; border: none;
+      color: var(--muted); cursor: pointer;
+      font-size: 18px; padding: 4px;
+    }
+
+    /* TOP BAR */
+    .topbar {
+      padding: 12px 16px;
+      padding-top: calc(12px + var(--safe-top));
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 10px; }
+    .logo-icon {
+      width: 34px; height: 34px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .logo-info { display: flex; flex-direction: column; }
+    .logo-name {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 1.05rem;
+      line-height: 1;
+    }
+    .logo-status {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 0.65rem;
+      color: var(--green);
+      margin-top: 3px;
+    }
+    .status-dot {
+      width: 6px; height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .topbar-actions { display: flex; gap: 8px; }
+    .icon-btn {
+      width: 34px; height: 34px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      -webkit-tap-highlight-color: transparent;
+      transition: color 0.2s;
+    }
+    .icon-btn:active { background: var(--surface2); }
+
+    /* MESSAGES */
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      padding: 20px 0 8px;
+    }
+    .messages-inner {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* WELCOME */
+    .welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 55vh;
+      text-align: center;
+      gap: 12px;
+      padding: 20px 0;
+    }
+    .welcome-icon {
+      width: 60px; height: 60px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+      box-shadow: 0 0 40px rgba(124,106,247,0.3);
+      margin-bottom: 4px;
+    }
+    .welcome h1 {
+      font-family: var(--font-serif);
+      font-size: 1.7rem;
+      font-style: italic;
+    }
+    .welcome p {
+      color: var(--muted);
+      font-size: 0.85rem;
+      max-width: 300px;
+      line-height: 1.6;
+    }
+    .suggestions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+      width: 100%;
+    }
+    .suggestion-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 13px;
+      text-align: left;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.15s;
+      active: background var(--surface2);
+    }
+    .suggestion-card:active { background: var(--surface2); }
+    .suggestion-title { font-size: 0.78rem; font-weight: 500; margin-bottom: 3px; }
+    .suggestion-sub { font-size: 0.7rem; color: var(--muted); line-height: 1.3; }
+
+    /* MESSAGES */
+    .message { display: flex; gap: 10px; align-items: flex-start; }
+    .message.user { flex-direction: row-reverse; }
+
+    .avatar {
+      width: 28px; height: 28px;
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .avatar.ai { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+    .avatar.user { background: var(--surface2); border: 1px solid var(--border); }
+
+    .bubble {
+      max-width: 82%;
+      padding: 11px 14px;
+      border-radius: 14px;
+      font-size: 0.88rem;
+      line-height: 1.65;
+      word-break: break-word;
+    }
+    .message.user .bubble {
+      background: var(--user-bg);
+      border: 1px solid rgba(124,106,247,0.2);
+      border-bottom-right-radius: 3px;
+      color: #c4b5fd;
+    }
+    .message.ai .bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 3px;
+    }
+
+    .typing-dots { display: flex; gap: 5px; align-items: center; padding: 4px 2px; }
+    .typing-dots span {
+      width: 6px; height: 6px;
+      background: var(--accent2);
+      border-radius: 50%;
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+    .bubble pre {
+      background: #0d0d12;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin: 8px 0;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      line-height: 1.5;
+    }
+    .bubble code {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      background: rgba(255,255,255,0.06);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+    .bubble pre code { background: none; padding: 0; }
+
+    /* INPUT AREA */
+    .input-area {
+      padding: 10px 14px;
+      padding-bottom: calc(10px + var(--safe-bottom));
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .input-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+    }
+    .input-box {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 11px 18px;
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 0.92rem;
+      resize: none;
+      outline: none;
+      line-height: 1.5;
+      max-height: 140px;
+      overflow-y: auto;
+      -webkit-appearance: none;
+      transition: border-color 0.2s;
+    }
+    .input-box::placeholder { color: var(--muted); }
+    .input-box:focus { border-color: rgba(124,106,247,0.4); }
+
+    .send-btn {
+      width: 42px; height: 42px;
+      background: var(--accent);
+      border: none;
+      border-radius: 50%;
+      color: white;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    .send-btn:disabled { opacity: 0.35; }
+    .send-btn:active:not(:disabled) { background: var(--accent2); transform: scale(0.95); }
+
+    .input-hint {
+      font-size: 0.63rem;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 6px;
+      letter-spacing: 0.2px;
+    }
+
+    /* Offline toast */
+    .toast {
+      position: fixed;
+      bottom: 100px; left: 50%; transform: translateX(-50%);
+      background: #2d1f1f;
+      border: 1px solid #7f3636;
+      color: #fca5a5;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+      z-index: 999;
+    }
+    .toast.show { opacity: 1; }
+
+    .message { animation: msgIn 0.25s ease; }
+    @keyframes msgIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  </style>
+</head>
+<body>
+
+<!-- INSTALL BANNER -->
+<div class="install-banner" id="installBanner">
+  <div style="font-size:22px">📲</div>
+  <p><strong>Install ARIA on your phone!</strong>Tap to add to your home screen — works offline too.</p>
+  <button class="install-btn" id="installBtn">Install</button>
+  <button class="install-close" onclick="document.getElementById('installBanner').classList.remove('show')">✕</button>
+</div>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo-icon">✦</div>
+    <div class="logo-info">
+      <span class="logo-name">ARIA</span>
+      <span class="logo-status"><span class="status-dot"></span>Online · claude-sonnet-4-6</span>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button class="icon-btn" title="New chat" onclick="newChat()">🗑</button>
+  </div>
+</div>
+
+<!-- MESSAGES -->
+<div class="messages-container" id="messagesContainer">
+  <div class="messages-inner" id="messagesInner">
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">✦</div>
+      <h1>Hello, I'm ARIA</h1>
+      <p>Your AI assistant. Ask me anything — code, writing, math, or just chat!</p>
+      <div class="suggestions">
+        <div class="suggestion-card" onclick="useSuggestion('Explain how neural networks work simply')">
+          <div class="suggestion-title">🧠 Neural networks</div>
+          <div class="suggestion-sub">Simple explanation</div>
+        </div>
+        <div class="suggestion-card" onclick="useSuggestion('Write a Python function to sort a list of dictionaries by a key')">
+          <div class="suggestion-title">🐍 Python code</div>
+          <div class="suggestion-sub">Sort dictionaries</div>
+        </div>
+        <div class="suggestion-card" onclick="useSuggestion('What are best practices for REST API design?')">
+          <div class="suggestion-title">🔌 REST API</div>
+          <div class="suggestion-sub">Best practices</div>
+        </div>
+        <div class="suggestion-card" onclick="useSuggestion('Help me write a LinkedIn bio for an AI and Data Science student')">
+          <div class="suggestion-title">💼 LinkedIn bio</div>
+          <div class="suggestion-sub">AI/DS student</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- INPUT -->
+<div class="input-area">
+  <div class="input-row">
+    <textarea
+      id="inputBox"
+      class="input-box"
+      placeholder="Message ARIA..."
+      rows="1"
+      onkeydown="handleKey(event)"
+      oninput="autoResize(this)"
+    ></textarea>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>➤</button>
+  </div>
+  <div class="input-hint">ARIA can make mistakes — verify important info</div>
+</div>
+
+<!-- OFFLINE TOAST -->
+<div class="toast" id="toast">⚠️ You're offline. Check your connection.</div>
+
+<script>
+  // ── PWA Install Prompt ──
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('installBanner').classList.add('show');
+  });
+  document.getElementById('installBtn').addEventListener('click', async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      deferredPrompt = null;
+      document.getElementById('installBanner').classList.remove('show');
+    }
+  });
+  window.addEventListener('appinstalled', () => {
+    document.getElementById('installBanner').classList.remove('show');
+  });
+
+  // ── Service Worker ──
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  // ── Chat Logic ──
+  const messagesInner = document.getElementById('messagesInner');
+  const messagesContainer = document.getElementById('messagesContainer');
+  const inputBox = document.getElementById('inputBox');
+  const sendBtn = document.getElementById('sendBtn');
+  const welcome = document.getElementById('welcome');
+
+  let history = [];
+  let isLoading = false;
+
+  inputBox.addEventListener('input', () => {
+    sendBtn.disabled = inputBox.value.trim() === '' || isLoading;
+  });
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 600) {
+      e.preventDefault();
+      if (!sendBtn.disabled) sendMessage();
+    }
+  }
+
+  function useSuggestion(text) {
+    inputBox.value = text;
+    autoResize(inputBox);
+    sendBtn.disabled = false;
+    sendMessage();
+  }
+
+  function newChat() {
+    history = [];
+    messagesInner.innerHTML = '';
+    messagesInner.appendChild(welcome);
+    welcome.style.display = 'flex';
+    inputBox.value = '';
+    autoResize(inputBox);
+    sendBtn.disabled = true;
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  function addMessage(role, content) {
+    welcome.style.display = 'none';
+    const msg = document.createElement('div');
+    msg.className = `message ${role}`;
+    const avatar = document.createElement('div');
+    avatar.className = `avatar ${role}`;
+    avatar.textContent = role === 'ai' ? '✦' : '👤';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = role === 'ai' ? formatMessage(content) : escapeHtml(content).replace(/\n/g,'<br/>');
+    msg.appendChild(avatar);
+    msg.appendChild(bubble);
+    messagesInner.appendChild(msg);
+    scrollToBottom();
+  }
+
+  function formatMessage(text) {
+    return text
+      .replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
+        `<pre><code>${escapeHtml(code.trim())}</code></pre>`)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/\n/g, '<br/>');
+  }
+
+  function escapeHtml(t) {
+    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function addTyping() {
+    const msg = document.createElement('div');
+    msg.className = 'message ai'; msg.id = 'typing';
+    const av = document.createElement('div');
+    av.className = 'avatar ai'; av.textContent = '✦';
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    b.innerHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
+    msg.appendChild(av); msg.appendChild(b);
+    messagesInner.appendChild(msg);
+    scrollToBottom();
+  }
+
+  function removeTyping() {
+    const el = document.getElementById('typing');
+    if (el) el.remove();
+  }
+
+  function scrollToBottom() {
+    setTimeout(() => messagesContainer.scrollTop = messagesContainer.scrollHeight, 60);
+  }
+
+  async function sendMessage() {
+    const text = inputBox.value.trim();
+    if (!text || isLoading) return;
+
+    if (!navigator.onLine) { showToast('⚠️ You are offline. Check your connection.'); return; }
+
+    isLoading = true;
+    sendBtn.disabled = true;
+    inputBox.value = '';
+    autoResize(inputBox);
+    inputBox.blur(); // hide mobile keyboard after sending
+
+    addMessage('user', text);
+    history.push({ role: 'user', content: text });
+    addTyping();
+
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 1000,
+          system: "You are ARIA, a smart and friendly AI assistant. Give clear, helpful, concise answers. Use markdown for code and formatting when useful.",
+          messages: history
+        })
+      });
+      const data = await res.json();
+      removeTyping();
+      const reply = data?.content?.[0]?.text || "Sorry, I couldn't get a response.";
+      history.push({ role: 'assistant', content: reply });
+      addMessage('ai', reply);
+    } catch (err) {
+      removeTyping();
+      addMessage('ai', '⚠️ Something went wrong. Please check your connection and try again.');
+    }
+
+    isLoading = false;
+    sendBtn.disabled = false;
+  }
+
+  // Prevent iOS bounce scroll
+  document.body.addEventListener('touchmove', (e) => {
+    if (e.target.closest('.messages-container') || e.target.closest('.input-box')) return;
+    e.preventDefault();
+  }, { passive: false });
+</script>
+</body>
+</html>
